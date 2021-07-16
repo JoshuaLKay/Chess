@@ -13,8 +13,8 @@ namespace Chess
     public partial class Form1 : Form
     {
         //TODO
-        //Minimax (Make sure it works)
-        //Alpha Beta Pruning (works!)
+        //Finish end screen
+        //Probably do optimisations to get depth above 5
         Random rnd = new Random();
         int LastClick = 0;
         bool Player = true;
@@ -35,9 +35,10 @@ namespace Chess
         { -5, -6, 0, 0, 0, 0, 6, 5 },
         { -3, -6, 0, 0, 0, 0, 6, 3 } };
         //from https://www.chessprogramming.org/Simplified_Evaluation_Function
-        readonly int[,,] PieceSquareTables = new int[6, 8, 8] { {
+        //these should be rotated 90 anti clockwise (Use [7-j, i] instead of [i, j]) this might be wrong I need to test it more
+        readonly int[,,] PieceSquareTables = new int[6, 8, 8]
         //king
-        { -30, -40, -40, -50, -50, -40, -40, -30 },
+        { { { -30, -40, -40, -50, -50, -40, -40, -30 },
         { -30, -40, -40, -50, -50, -40, -40, -30 },
         { -30, -40, -40, -50, -50, -40, -40, -30 },
         { -30, -40, -40, -50, -50, -40, -40, -30 },
@@ -106,7 +107,7 @@ namespace Chess
             Player = true;
             ShowBoard(Board, new int[8, 8]);
         }
-        private int[] MiniMaxMain(int Depth, int[,] Board, bool Side) //Make sure this works
+        private int[] MiniMaxMain(int Depth, int[,] Board, bool Side)
         {
             List<int[]> Moves = GetAllMoves(Board, Side);
             int BestValue = -1000000;
@@ -125,7 +126,7 @@ namespace Chess
             BlackMove = BestMove;
             return BestMove;
         }
-        private int MiniMax(int Depth, int[,] Board, bool Side, int Alpha, int Beta) //Make sure this works
+        private int MiniMax(int Depth, int[,] Board, bool Side, int Alpha, int Beta) //Make sure this works (I think i does now)
         {
             if (Depth == 0)
             {
@@ -181,7 +182,7 @@ namespace Chess
             }
             return PossibleMoves;
         }
-        //returns the value of the board
+        //returns the value of the board from white's perspective
         private int BoardValue(int[,] Board)
         {
             int Value = 0;
@@ -189,13 +190,14 @@ namespace Chess
             {
                 for (int j = 0; j < 8; j++)
                 {
+                    //the values for PieceSquareTables are wierd because they are rotated 90 anti clockwise from everything else (I will forget to change this later)
                     if (Board[i,j] > 0)
                     {
-                        Value += Values[Board[i, j] - 1] + PieceSquareTables[Board[i, j] - 1, i, j];
+                        Value += Values[Board[i, j] - 1] + PieceSquareTables[Board[i, j] - 1, 7 - j, i];
                     }
                     if (Board[i,j] < 0)
                     {
-                        Value -= Values[-Board[i, j] - 1] + PieceSquareTables[-Board[i, j] - 1, i, 7-j];
+                        Value -= Values[-Board[i, j] - 1] + PieceSquareTables[-Board[i, j] - 1, 7 - j, 7 - i];
                     }
                 }
             }
@@ -265,13 +267,11 @@ namespace Chess
                 }
             }
         }
-        private void GameEnd(bool Winner) //needs fixing
+        private void GameEnd(bool Winner) //needs finishing
         {
-            for (int i = Controls.Count - 1; i >= 0; i--)
-            {
-                Controls[i].Dispose();
-            }
-            Button Box = new Button();
+            ClearAll();
+            //Text Box
+            TextBox Box = new TextBox();
             Box.Location = new Point(200, 200);
             Box.ForeColor = Color.Black;
             Box.Height = 100;
@@ -286,6 +286,40 @@ namespace Chess
             }
             Box.BringToFront();
             Controls.Add(Box);
+            //Play Again
+            Button PlayAgain = new Button();
+            PlayAgain.Location = new Point(200, 250);
+            PlayAgain.ForeColor = Color.Black;
+            PlayAgain.Height = 50;
+            PlayAgain.Width = 100;
+            PlayAgain.Text = "Play Again";
+            PlayAgain.MouseClick += new MouseEventHandler((o, a) => RestartGame());
+            Controls.Add(PlayAgain);
+            //End Game
+            Button EndGame = new Button();
+            EndGame.Location = new Point(300, 250);
+            EndGame.ForeColor = Color.Black;
+            EndGame.Height = 50;
+            EndGame.Width = 100;
+            EndGame.Text = "Close Game";
+            EndGame.MouseClick += new MouseEventHandler((o, a) => CloseProgram());
+            Controls.Add(EndGame);
+        }
+        private void RestartGame()
+        {
+            Player = true;
+            ShowBoard(InitialBoard, new int[8, 8]);
+        }
+        private void CloseProgram()
+        {
+            this.Close();
+        }
+        private void ClearAll()
+        {
+            for (int i = Controls.Count - 1; i >= 0; i--)
+            {
+                Controls[i].Dispose();
+            }
         }
         //display chess board, also sets up pictureboxes with onclick and starts the ai after called after a player move
         private void ShowBoard(int[,] Board, int[,] PlayerMovesBoard)
@@ -293,10 +327,7 @@ namespace Chess
             //delete all imageboxes
             bool WhiteKing = false;
             bool BlackKing = false;
-            for (int i = Controls.Count - 1; i >= 0; i--)
-            {
-                Controls[i].Dispose();
-            }
+            ClearAll();
             for (int i = 0; i < 8; i++)
             {
                 for (int j = 0; j < 8; j++)
@@ -502,12 +533,6 @@ namespace Chess
                             }
                         }
                     }
-                    NewPiece.BackColor = Color.Transparent;
-                    NewPiece.Height = 100;
-                    NewPiece.Width = 100;
-                    NewPiece.Location = new Point(i * 100, j * 100);
-                    NewPiece.Name = i + "" + j;
-                    NewPiece.MouseClick += new MouseEventHandler((o, a) => BoardClick(Board, NewPiece.Name));
                     //shows the last move black made
                     if (BlackMove[0] == i && BlackMove[1] == j)
                     {
@@ -519,6 +544,8 @@ namespace Chess
                         {
                             NewPiece.BackgroundImage = Properties.Resources.ChessSquareBlackRed;
                         }
+                        BlackMove[0] = 8;
+                        BlackMove[1] = 8;
                     }
                     if (BlackMove[2] == i && BlackMove[3] == j)
                     {
@@ -568,10 +595,17 @@ namespace Chess
                                 case (-6):
                                     NewPiece.BackgroundImage = Properties.Resources.bpbr;
                                     break;
-                            }
+                            } 
                         }
-                        BlackMove = new int[4] { 8, 8, 8, 8 };
+                        BlackMove[2] = 8;
+                        BlackMove[3] = 8;
                     }
+                    NewPiece.BackColor = Color.Transparent;
+                    NewPiece.Height = 100;
+                    NewPiece.Width = 100;
+                    NewPiece.Location = new Point(i * 100, j * 100);
+                    NewPiece.Name = i + "" + j;
+                    NewPiece.MouseClick += new MouseEventHandler((o, a) => BoardClick(Board, NewPiece.Name));
                     Controls.Add(NewPiece);
                 }
             }
