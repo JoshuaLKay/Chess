@@ -34,10 +34,10 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(824, 801);
+            this.ClientSize = new System.Drawing.Size(800, 800);
             this.ForeColor = System.Drawing.Color.Transparent;
             this.Name = "Form1";
-            this.Text = "Chess 0.2";
+            this.Text = "Chess 0.2.1";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.ResumeLayout(false);
 

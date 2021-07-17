@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Threading;
 
 namespace Chess
 {
@@ -15,6 +16,8 @@ namespace Chess
         //TODO
         //Finish end screen
         //Probably do optimisations to get depth above 5
+        //Transposition Tables
+        //Multithreading?
         Random rnd = new Random();
         int LastClick = 0;
         bool Player = true;
@@ -24,7 +27,9 @@ namespace Chess
         int[] BlackMove = new int[4] { 8, 8, 8, 8 };
         //Stores a grid of possible player moves for the clicked on piece
         int[,] PlayerMovesBoard = new int[8, 8];
-        readonly int[] Values = new int[6] { 100000, 900, 500, 300, 300, 100 };
+        //piece values
+        readonly int[] Values = new int[6] { 20000, 900, 500, 300, 300, 100 };
+        //starting board
         readonly int[,] InitialBoard = new int[8, 8] {
         { -3, -6, 0, 0, 0, 0, 6, 3 },
         { -5, -6, 0, 0, 0, 0, 6, 5 },
@@ -35,7 +40,7 @@ namespace Chess
         { -5, -6, 0, 0, 0, 0, 6, 5 },
         { -3, -6, 0, 0, 0, 0, 6, 3 } };
         //from https://www.chessprogramming.org/Simplified_Evaluation_Function
-        //these should be rotated 90 anti clockwise (Use [7-j, i] instead of [i, j]) this might be wrong I need to test it more
+        //these should be rotated 90 anti clockwise (Use [7-j, i] instead of [i, j]) this might be wrong I need to test it more (i think it works)
         readonly int[,,] PieceSquareTables = new int[6, 8, 8]
         //king
         { { { -30, -40, -40, -50, -50, -40, -40, -30 },
@@ -102,10 +107,12 @@ namespace Chess
         //AI start
         private void AIMain(int[,] Board)
         {
+            Thread.Sleep(100);
             int Depth = 5;
             Board = NextMove(Board, MiniMaxMain(Depth, Board, false));
             Player = true;
             ShowBoard(Board, new int[8, 8]);
+            this.BackgroundImage = null;
         }
         private int[] MiniMaxMain(int Depth, int[,] Board, bool Side)
         {
@@ -190,7 +197,7 @@ namespace Chess
             {
                 for (int j = 0; j < 8; j++)
                 {
-                    //the values for PieceSquareTables are wierd because they are rotated 90 anti clockwise from everything else (I will forget to change this later)
+                    //the values for PieceSquareTables are wierd because they are have to be rotated 90 anti clockwise from everything else (I will forget to change this later)
                     if (Board[i,j] > 0)
                     {
                         Value += Values[Board[i, j] - 1] + PieceSquareTables[Board[i, j] - 1, 7 - j, i];
@@ -267,24 +274,23 @@ namespace Chess
                 }
             }
         }
-        private void GameEnd(bool Winner) //needs finishing
+        private void GameEnd(bool Winner) //could make look nicer
         {
-            ClearAll();
             //Text Box
-            TextBox Box = new TextBox();
+            ClearAll();
+            Label Box = new Label();
             Box.Location = new Point(200, 200);
             Box.ForeColor = Color.Black;
-            Box.Height = 100;
-            Box.Width = 200;
+            //Box.Height = 100;
+            //Box.Width = 200;
             if (Winner)
             {
-                Box.Text = "You won";
+                Box.Text = "You win";
             }
             else
             {
-                Box.Text = "You lose";
+                Box.Text = "Game Over";
             }
-            Box.BringToFront();
             Controls.Add(Box);
             //Play Again
             Button PlayAgain = new Button();
@@ -321,7 +327,7 @@ namespace Chess
                 Controls[i].Dispose();
             }
         }
-        //display chess board, also sets up pictureboxes with onclick and starts the ai after called after a player move
+        //display chess board, also sets up pictureboxes with onclick and starts the ai after called after a player move (should probably move that latter stuff to somewhere else)
         private void ShowBoard(int[,] Board, int[,] PlayerMovesBoard)
         {
             //delete all imageboxes
@@ -609,10 +615,6 @@ namespace Chess
                     Controls.Add(NewPiece);
                 }
             }
-            if (!Player)
-            {
-                AIMain(Board);
-            }
             if (!BlackKing)
             {
                 GameEnd(true);
@@ -620,6 +622,11 @@ namespace Chess
             if (!WhiteKing)
             {
                 GameEnd(false);
+            }
+            if (!Player)
+            {
+                this.Update();
+                AIMain(Board);
             }
         }
         //returns a list of all legal moves for one piece
