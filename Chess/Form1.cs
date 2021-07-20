@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Threading;
+using System.Diagnostics;
 
 namespace Chess
 {
@@ -29,6 +30,9 @@ namespace Chess
         int[,] PlayerMovesBoard = new int[8, 8];
         //piece values
         readonly int[] Values = new int[6] { 20000, 900, 500, 300, 300, 100 };
+        //diagnostic stuff
+        int TimeTaken = 0;
+        int MovesChecked = 0;
         //starting board
         readonly int[,] InitialBoard = new int[8, 8] {
         { -3, -6, 0, 0, 0, 0, 6, 3 },
@@ -107,12 +111,15 @@ namespace Chess
         //AI start
         private void AIMain(int[,] Board)
         {
-            Thread.Sleep(100);
             int Depth = 5;
+            var watch = new Stopwatch();
+            MovesChecked = 0;
+            watch.Start();
             Board = NextMove(Board, MiniMaxMain(Depth, Board, false));
+            watch.Stop();
+            TimeTaken = Convert.ToInt32(watch.ElapsedMilliseconds);
             Player = true;
             ShowBoard(Board, new int[8, 8]);
-            this.BackgroundImage = null;
         }
         private int[] MiniMaxMain(int Depth, int[,] Board, bool Side)
         {
@@ -137,6 +144,7 @@ namespace Chess
         {
             if (Depth == 0)
             {
+                MovesChecked++;
                 return -BoardValue(Board);
             }
             int BestMove;
@@ -264,8 +272,12 @@ namespace Chess
                 {
                     if (PlayerMovesBoard[x, y] == 1)
                     {
-                        Board = NextMove(Board, new int[] { LastPiece[0], LastPiece[1], x, y });
-                        Player = false;
+                        int[,] PotentialBoard = NextMove(Board, new int[] { LastPiece[0], LastPiece[1], x, y });
+                        if (KingCheck(PotentialBoard))
+                        {
+                            Board = PotentialBoard;
+                            Player = false;
+                        }
                     }
                     PlayerMovesBoard = new int[8, 8];
                     LastClick = 0;
@@ -274,27 +286,50 @@ namespace Chess
                 }
             }
         }
+        private bool KingCheck(int [,] Board)
+        {
+            List<int[]> Moves = GetAllMoves(Board, false);
+            for (int i = 0; i < Moves.Count; i++)
+            {
+                //checks if any of the next possible black moves will capture the king
+                if (!IsWhiteKing(NextMove(Board, Moves[i])))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+        private bool CheckMate(int[,] Board)
+        {
+            List<int[]> Moves = GetAllMoves(Board, true);
+            for (int i = 0; i < Moves.Count; i++)
+            {
+                //checks if any of the next possible white moves will get out of check
+                if (KingCheck(NextMove(Board, Moves[i])))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
         private void GameEnd(bool Winner) //could make look nicer
         {
             //Text Box
-            ClearAll();
-            Label Box = new Label();
-            Box.Location = new Point(200, 200);
-            Box.ForeColor = Color.Black;
-            //Box.Height = 100;
-            //Box.Width = 200;
+            Label Info = new Label();
+            Info.ForeColor = Color.Black;
+            Info.Location = new Point(800, 100);
             if (Winner)
             {
-                Box.Text = "You win";
+                Info.Text = "You win";
             }
             else
             {
-                Box.Text = "Game Over";
+                Info.Text = "Checkmate";
             }
-            Controls.Add(Box);
+            Controls.Add(Info);
             //Play Again
             Button PlayAgain = new Button();
-            PlayAgain.Location = new Point(200, 250);
+            PlayAgain.Location = new Point(800, 125);
             PlayAgain.ForeColor = Color.Black;
             PlayAgain.Height = 50;
             PlayAgain.Width = 100;
@@ -303,7 +338,7 @@ namespace Chess
             Controls.Add(PlayAgain);
             //End Game
             Button EndGame = new Button();
-            EndGame.Location = new Point(300, 250);
+            EndGame.Location = new Point(900, 125);
             EndGame.ForeColor = Color.Black;
             EndGame.Height = 50;
             EndGame.Width = 100;
@@ -313,6 +348,8 @@ namespace Chess
         }
         private void RestartGame()
         {
+            TimeTaken = 0;
+            MovesChecked = 0;
             Player = true;
             ShowBoard(InitialBoard, new int[8, 8]);
         }
@@ -327,25 +364,78 @@ namespace Chess
                 Controls[i].Dispose();
             }
         }
-        //display chess board, also sets up pictureboxes with onclick and starts the ai after called after a player move (should probably move that latter stuff to somewhere else)
-        private void ShowBoard(int[,] Board, int[,] PlayerMovesBoard)
+        private bool IsWhiteKing(int[,] Board)
         {
-            //delete all imageboxes
-            bool WhiteKing = false;
-            bool BlackKing = false;
-            ClearAll();
             for (int i = 0; i < 8; i++)
             {
                 for (int j = 0; j < 8; j++)
                 {
                     if (Board[i, j] == 1)
                     {
-                        WhiteKing = true;
+                        return true;
                     }
-                    if (Board[i,j] == -1)
+                }
+            }
+            return false;
+        }
+        private bool IsBlackKing(int[,] Board)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 8; j++)
+                {
+                    if (Board[i, j] == -1)
                     {
-                        BlackKing = true;
-                    }
+                        return true;
+                    }  
+                }
+            }
+            return false;
+        }
+        //display chess board, also sets up pictureboxes with onclick and starts the ai after called after a player move (should probably move that latter stuff to somewhere else)
+        private void ShowBoard(int[,] Board, int[,] PlayerMovesBoard)
+        {
+            //delete all imageboxes
+            ClearAll();
+            if (CheckMate(Board))
+            {
+                GameEnd(false);
+            }
+            //diagnostics
+            //positions
+            Label Info1 = new Label();
+            Info1.Text = "Positions Analysed:";
+            Info1.ForeColor = Color.Black;
+            Info1.Location = new Point(800, 0);
+            Controls.Add(Info1);
+            Label Info2 = new Label();
+            Info2.Text = Convert.ToString(MovesChecked);
+            Info2.ForeColor = Color.Black;
+            Info2.Location = new Point(900, 0);
+            Controls.Add(Info2);
+            //time taken
+            Label Info3 = new Label();
+            Info3.Text = "Time Taken (ms):";
+            Info3.ForeColor = Color.Black;
+            Info3.Location = new Point(800, 25);
+            Controls.Add(Info3);
+            Label Info4 = new Label();
+            Info4.Text = Convert.ToString(TimeTaken);
+            Info4.ForeColor = Color.Black;
+            Info4.Location = new Point(900, 25);
+            Controls.Add(Info4);
+            if (!KingCheck(Board))
+            {
+                Label Check = new Label();
+                Check.Text = "In Check";
+                Check.ForeColor = Color.Black;
+                Check.Location = new Point(800, 75);
+            }
+            //Piece display
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 8; j++)
+                {
                     //Draw Pieces
                     PictureBox NewPiece = new PictureBox();
                     //pieces.Add(NewPiece);
@@ -615,11 +705,11 @@ namespace Chess
                     Controls.Add(NewPiece);
                 }
             }
-            if (!BlackKing)
+            if (!IsBlackKing(Board))
             {
                 GameEnd(true);
             }
-            if (!WhiteKing)
+            if (!IsWhiteKing(Board))
             {
                 GameEnd(false);
             }
