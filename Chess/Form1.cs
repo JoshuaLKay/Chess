@@ -15,7 +15,6 @@ namespace Chess
     public partial class Form1 : Form
     {
         //TODO
-        //Finish end screen
         //Probably do optimisations to get depth above 5
         //Transposition Tables
         //Multithreading?
@@ -46,7 +45,7 @@ namespace Chess
         //from https://www.chessprogramming.org/Simplified_Evaluation_Function
         //these should be rotated 90 anti clockwise (Use [7-j, i] instead of [i, j]) this might be wrong I need to test it more (i think it works)
         readonly int[,,] PieceSquareTables = new int[6, 8, 8]
-        //king
+        //king (increased castling squares from 30 to 50)
         { { { -30, -40, -40, -50, -50, -40, -40, -30 },
         { -30, -40, -40, -50, -50, -40, -40, -30 },
         { -30, -40, -40, -50, -50, -40, -40, -30 },
@@ -54,7 +53,7 @@ namespace Chess
         { -20, -30, -30, -40, -40, -30, -30, -20 },
         { -10, -20, -20, -20, -20, -20, -20, -10 },
         { 20, 20, 0, 0, 0, 0, 20, 20 },
-        { 20, 30, 10, 0, 0, 10, 30, 20 } },
+        { 20, 50, 10, 0, 0, 10, 50, 20 } },
         //queen
         { { -20, -10, -10, -5, -5, -10, -10, -20 },
         { -10, 0, 0, 0, 0, 0, 0, -10 },
@@ -124,13 +123,13 @@ namespace Chess
         private int[] MiniMaxMain(int Depth, int[,] Board, bool Side)
         {
             List<int[]> Moves = GetAllMoves(Board, Side);
-            int BestValue = -1000000;
+            int BestValue = -100000;
             int[] BestMove = Moves[0];
             for (int i = 0; i < Moves.Count; i++)
             {
                 int[] NewMove = Moves[i];
                 int[,] NewBoard = NextMove(Board, NewMove);
-                var value = MiniMax(Depth - 1, NewBoard, !Side, -1000000, 1000000);
+                var value = MiniMax(Depth - 1, NewBoard, !Side, -100000, 100000);
                 if (value >= BestValue)
                 {
                     BestValue = value;
@@ -152,7 +151,7 @@ namespace Chess
             if (!Side)
             {
                 //Max
-                BestMove = -1000000;
+                BestMove = -100000;
                 for (int i = 0; i < Moves.Count; i++)
                 {
                     int[,] NewBoard = NextMove(Board, Moves[i]);
@@ -168,7 +167,7 @@ namespace Chess
             else
             {
                 //Min
-                BestMove = 1000000;
+                BestMove = 100000;
                 for (int i = 0; i < Moves.Count; i++)
                 {
                     int[,] NewBoard = NextMove(Board, Moves[i]);
@@ -212,7 +211,7 @@ namespace Chess
                     }
                     if (Board[i,j] < 0)
                     {
-                        Value -= Values[-Board[i, j] - 1] + PieceSquareTables[-Board[i, j] - 1, 7 - j, 7 - i];
+                        Value -= Values[(-Board[i, j]) - 1] + PieceSquareTables[(-Board[i, j]) - 1, 7 - j, 7 - i];
                     }
                 }
             }
@@ -238,6 +237,31 @@ namespace Chess
             else if (move[3] == 7 && CurrentPiece == -6)
             {
                 CurrentPiece = -2;
+            }
+            //queenside white
+            int[] QueensideWhite = new int[] { 4, 7, 1, 7 };
+            if (CurrentPiece == 1 && move[0] == 4 && move[1] == 7 && move [2] == 1 && move[3] == 7)
+            {
+                NewBoard[0, 7] = 0;
+                NewBoard[2, 7] = 3;
+            }
+            //kingside white
+            if (CurrentPiece == 1 && move[0] == 4 && move[1] == 7 && move[2] == 6 && move[3] == 7)
+            {
+                NewBoard[7, 7] = 0;
+                NewBoard[5, 7] = 3;
+            }
+            //queenside black
+            if (CurrentPiece == -1 && move[0] == 4 && move[1] == 0 && move[2] == 1 && move[3] == 0)
+            {
+                NewBoard[0, 0] = 0;
+                NewBoard[2, 0] = -3;
+            }
+            //kingside black
+            if (CurrentPiece == -1 && move[0] == 4 && move[1] == 0 && move[2] == 6 && move[3] == 0)
+            {
+                NewBoard[7, 0] = 0;
+                NewBoard[5, 0] = -3;
             }
             NewBoard[move[0], move[1]] = 0;
             NewBoard[move[2], move[3]] = CurrentPiece;
@@ -273,7 +297,7 @@ namespace Chess
                     if (PlayerMovesBoard[x, y] == 1)
                     {
                         int[,] PotentialBoard = NextMove(Board, new int[] { LastPiece[0], LastPiece[1], x, y });
-                        if (KingCheck(PotentialBoard))
+                        if (!KingCheck(PotentialBoard))
                         {
                             Board = PotentialBoard;
                             Player = false;
@@ -286,6 +310,7 @@ namespace Chess
                 }
             }
         }
+        //returns true if the king is in check for a given board
         private bool KingCheck(int [,] Board)
         {
             List<int[]> Moves = GetAllMoves(Board, false);
@@ -294,18 +319,19 @@ namespace Chess
                 //checks if any of the next possible black moves will capture the king
                 if (!IsWhiteKing(NextMove(Board, Moves[i])))
                 {
-                    return false;
+                    return true;
                 }
             }
-            return true;
+            return false;
         }
+        //returns true if the king is in checkmate
         private bool CheckMate(int[,] Board)
         {
             List<int[]> Moves = GetAllMoves(Board, true);
             for (int i = 0; i < Moves.Count; i++)
             {
                 //checks if any of the next possible white moves will get out of check
-                if (KingCheck(NextMove(Board, Moves[i])))
+                if (!KingCheck(NextMove(Board, Moves[i])))
                 {
                     return false;
                 }
@@ -424,12 +450,13 @@ namespace Chess
             Info4.ForeColor = Color.Black;
             Info4.Location = new Point(900, 25);
             Controls.Add(Info4);
-            if (!KingCheck(Board))
+            if (KingCheck(Board))
             {
                 Label Check = new Label();
-                Check.Text = "In Check";
+                Check.Text = "You are in check";
                 Check.ForeColor = Color.Black;
                 Check.Location = new Point(800, 75);
+                Controls.Add(Check);
             }
             //Piece display
             for (int i = 0; i < 8; i++)
@@ -786,7 +813,7 @@ namespace Chess
             return moves;
         }
         //legal moves
-        //king - needs castling
+        //king
         private List<int[]> KingMoves(int x, int y, int color, int[,] Board)
         {
             List<int[]> moves = new List<int[]>();
@@ -818,6 +845,40 @@ namespace Chess
                         }
                     }
                 }
+            }
+            //castling
+            switch (color)
+            {
+                //white
+                case (0):
+                    //queenside
+                    if ((Board[4,7] == 1) && (Board[0,7] == 3) && (Board[1, 7] == 0) && (Board[2, 7] == 0) && (Board[3, 7] == 0))
+                    {
+                        int[] NewMove = new int[] { 4, 7, 1, 7 };
+                        moves.Add(NewMove);
+                    }
+                    //kingside
+                    if ((Board[4, 7] == 1) && (Board[7, 7] == 3) && (Board[5, 7] == 0) && (Board[6, 7] == 0))
+                    {
+                        int[] NewMove = new int[] { 4, 7, 6, 7 };
+                        moves.Add(NewMove);
+                    }
+                    break;
+                //black
+                case (1):
+                    //queenside
+                    if ((Board[4, 0] == -1) && (Board[0, 0] == -3) && (Board[1, 0] == 0) && (Board[2, 0] == 0) && (Board[3, 0] == 0))
+                    {
+                        int[] NewMove = new int[] { 4, 0, 1, 0 };
+                        moves.Add(NewMove);
+                    }
+                    //kingside
+                    if ((Board[4, 0] == -1) && (Board[7, 0] == -3) && (Board[5, 0] == 0) && (Board[6, 0] == 0))
+                    {
+                        int[] NewMove = new int[] { 4, 0, 6, 0 };
+                        moves.Add(NewMove);
+                    }
+                    break;
             }
             return moves;
         }
