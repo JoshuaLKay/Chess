@@ -37,7 +37,7 @@
             this.ClientSize = new System.Drawing.Size(1000, 800);
             this.ForeColor = System.Drawing.Color.Transparent;
             this.Name = "Form1";
-            this.Text = "Chess 0.4";
+            this.Text = "Chess 0.5";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.ResumeLayout(false);
 
