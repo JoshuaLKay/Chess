@@ -37,6 +37,7 @@ namespace Chess
         //diagnostic stuff
         int TimeTaken = 0;
         int MovesChecked = 0;
+        int LastDepth = 0;
         //ai first move
         bool FirstMove = true;
         //starting board
@@ -49,10 +50,19 @@ namespace Chess
         { -4, -6, 0, 0, 0, 0, 6, 4 },
         { -5, -6, 0, 0, 0, 0, 6, 5 },
         { -3, -6, 0, 0, 0, 0, 6, 3 } };
+        //readonly int[,] InitialBoard = new int[8, 8]
+        //{ { 0, 0, 0, 0, 0, 0, 0, 0 },
+        //{ -5, 0, 0, 0, 0, 0, 0, 5 },
+        //{ 0, 0, 0, 0, 6, 0, 0, 0 },
+        //{ 0, 0, 0, 0, 0, 0, 0, 0 },
+        //{ -1, -6, 0, 0, 0, 0, 6, 1 },
+        //{ 0, 0, 0, 0, 0, 0, 0, 0 },
+        //{ 0, 0, 0, 0, 0, 0, 0, 0 },
+        //{ 0, 0, 0, 0, 0, 0, 0, 0 } };
         //from https://www.chessprogramming.org/Simplified_Evaluation_Function
         //these should be rotated 90 anti clockwise (Use [7-j, i] instead of [i, j])
         readonly int[,,] PieceSquareTables = new int[6, 8, 8]
-        //king (increased castling squares from 30 to 50) (reduced squares next to king and queen from 10 to 0)
+        //king (increased castling squares from 30 to 50)
         { { { -30, -40, -40, -50, -50, -40, -40, -30 },
         { -30, -40, -40, -50, -50, -40, -40, -30 },
         { -30, -40, -40, -50, -50, -40, -40, -30 },
@@ -60,7 +70,7 @@ namespace Chess
         { -20, -30, -30, -40, -40, -30, -30, -20 },
         { -10, -20, -20, -20, -20, -20, -20, -10 },
         { 20, 20, 0, 0, 0, 0, 20, 20 },
-        { 20, 50, 0, 0, 0, 0, 50, 20 } },
+        { 20, 50, 10, 0, 0, 10, 50, 20 } },
         //queen
         { { -20, -10, -10, -5, -5, -10, -10, -20 },
         { -10, 0, 0, 0, 0, 0, 0, -10 },
@@ -107,24 +117,53 @@ namespace Chess
         { 5, 10, 10, -20, -20, 10, 10, 5 },
         { 0, 0, 0, 0, 0, 0, 0, 0 } } };
         //Threading
+        int UserThreads = 4;
         int TDepth = new int();
         int[,] TBoard = new int[8,8];
         bool TSide = new bool();
         List<List<int[]>> TMoves = new List<List<int[]>>();
-        int ThreadsDone = 0;
+        int ThreadsDone = 11;
         public Form1()
         {
             InitializeComponent();
         }
         private void Form1_Load(object sender, EventArgs e)
         {
+            if (true)
+            {
+                Label ThreadL = new Label();
+                ThreadL.Text = Convert.ToString("Enter the number of threads to run on (Probably 1 less than your CPU's number of threads)");
+                ThreadL.Width = 500;
+                ThreadL.ForeColor = Color.Black;
+                ThreadL.Location = new Point(0, 0);
+                Controls.Add(ThreadL);
+                TextBox ThreadT = new TextBox();
+                ThreadT.ForeColor = Color.Black;
+                ThreadT.Location = new Point(0, 25);
+                Controls.Add(ThreadT);
+                Button ThreadB = new Button();
+                ThreadB.Text = "Confirm";
+                ThreadB.ForeColor = Color.Black;
+                ThreadB.Location = new Point(0, 50);
+                ThreadB.MouseClick += new MouseEventHandler((o, a) => StartGame(ThreadT.Text));
+                Controls.Add(ThreadB);
+            }
+            else
+            {
+                ShowBoard(InitialBoard, new int[8, 8]);
+            }
+
+        }
+        private void StartGame(string Threads)
+        {
+            UserThreads = Convert.ToInt32(Threads);
             ShowBoard(InitialBoard, new int[8, 8]);
         }
         //AI start
         private void AIMain(int[,] Board)
         {
-            int NoThreads = 11; //should be the number of threads the cpu has (probably 1 less)
-            int Depth = 5;
+            int NoThreads = UserThreads; //should be the number of threads the cpu has (probably 1 less)
+            int Depth = 4;
             var watch = new Stopwatch();
             int[,] NewBoard = new int[8, 8];
             List<List<int[]>> PotentialMoves = new List<List<int[]>>();
@@ -140,10 +179,42 @@ namespace Chess
             {
                 PotentialMoves[i % NoThreads].Add(NewMoves[i]);
             }
+            int BestPos = 0;
+            //random first move
+            if (FirstMove)
+            {
+                int[] RandomMove = NewMoves[rnd.Next(0, NewMoves.Count)];
+                NewBoard = NextMove(Board, RandomMove);
+                BlackMove = RandomMove;
+                FirstMove = false;
+            }
+            //ai loop
+            else
+            {
+                while (Convert.ToInt32(watch.ElapsedMilliseconds) < 1000)
+                {
+                    Depth++;
+                    BestPos = AiStart(Depth, Board, NewMoves, NoThreads, PotentialMoves);
+                }
+                NewBoard = NextMove(Board, BestMoves[BestPos]);
+                BlackMove = BestMoves[BestPos];
+                LastDepth = Depth;
+                TMoves.Clear();
+                BestMoves.Clear();
+                BestValues.Clear();
+            }
+            watch.Stop();
+            TimeTaken = Convert.ToInt32(watch.ElapsedMilliseconds);
+            Player = true;
+            ShowBoard(NewBoard, new int[8, 8]);
+        }
+        private int AiStart(int Depth, int[,] Board ,List<int[]> NewMoves, int NoThreads, List<List<int[]>> PotentialMoves )
+        {
             TDepth = Depth;
             TBoard = Board;
             TSide = false;
             TMoves = PotentialMoves;
+            ThreadsDone = 0;
             for (int i = 0; i < NoThreads && i < NewMoves.Count; i++)
             {
                 object ThreadNo = i;
@@ -162,30 +233,12 @@ namespace Chess
                     BestPos = i;
                 }
             }
-            NewBoard = NextMove(Board, BestMoves[BestPos]);
-            BlackMove = BestMoves[BestPos];
-            ThreadsDone = 0;
-            TMoves.Clear();
-            BestMoves.Clear();
-            BestValues.Clear();
-            //leave for random first move
-            if (FirstMove)
-            {
-                int[] RandomMove = NewMoves[rnd.Next(0, NewMoves.Count)];
-                NewBoard = NextMove(Board, RandomMove);
-                BlackMove = RandomMove;
-                FirstMove = false;
-            }
-            watch.Stop();
-            TimeTaken = Convert.ToInt32(watch.ElapsedMilliseconds);
-            Player = true;
-            ShowBoard(NewBoard, new int[8, 8]);
+            return BestPos;
         }
         //minimax thread (runs once for each thread per ai turn)
-        private void MiniMaxThreading(object No)
+        private void MiniMaxThreading(object ThreadNo)
         {
-
-            MiniMaxMain(TDepth, TBoard, TSide, TMoves[Convert.ToInt32(No)]);
+            MiniMaxMain(TDepth, TBoard, TSide, TMoves[Convert.ToInt32(ThreadNo)]);
             ThreadsDone++;
         }
         //start of minimax
@@ -521,6 +574,17 @@ namespace Chess
             Info4.ForeColor = Color.Black;
             Info4.Location = new Point(900, 25);
             Controls.Add(Info4);
+            //depth
+            Label Info5 = new Label();
+            Info5.Text = Convert.ToString("Depth:");
+            Info5.ForeColor = Color.Black;
+            Info5.Location = new Point(800, 50);
+            Controls.Add(Info5);
+            Label Info6 = new Label();
+            Info6.Text = Convert.ToString(LastDepth);
+            Info6.ForeColor = Color.Black;
+            Info6.Location = new Point(900, 50);
+            Controls.Add(Info6);
             if (KingCheck(Board))
             {
                 Label Check = new Label();
